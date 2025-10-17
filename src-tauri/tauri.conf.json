@@ -58,7 +58,7 @@
 				"active": true,
 				"targets": "all",
 				"category": "Productivity",
-				"resources": ["preload.js","icons/Square30x30Logo.png"],
+				"resources": ["preload.js","icons/Square30x30Logo.png", "icons/icon.ico", "icons/128x128.png"],
 				"identifier": "io.github.thatonecalculator.google-chat-tauri",
 				"icon": [
 					"icons/32x32.png",
