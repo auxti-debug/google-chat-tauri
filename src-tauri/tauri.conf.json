@@ -23,6 +23,11 @@
 						"domain": "mail.google.com",
 						"enableTauriAPI": true,
 						"windows": ["main"]
+					},
+					{
+						"domain": "meet.google.com", 
+        				"enableTauriAPI": true,
+        				"windows": ["main", "meet-call-*"]
 					}
 				]
 			},
@@ -36,6 +41,17 @@
 				},
 				"shell": {
 					"open": true
+				},
+				"window": {
+					"all": false,
+        			"create": true,        
+        			"setTitle": true,       
+        			"setSize": true,        
+        			"setAlwaysOnTop": true, 
+        			"show": true,           
+        			"hide": true,           
+        			"unminimize": true,     
+        			"setFocus": true        
 				}
 			},
 			"bundle": {
