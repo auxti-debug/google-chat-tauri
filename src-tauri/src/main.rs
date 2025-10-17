@@ -19,7 +19,7 @@ const AUMID: &str = "io.github.thatonecalculator.google-chat-tauri";
 
 #[cfg(target_os = "windows")]
 #[tauri::command]
-async fn show_windows_toast(app: tauri::AppHandle, title: String, body: String) {
+async fn show_windows_toast(app: tauri::AppHandle, title: String, body: String, is_call: bool) {
     println!("TAURI :: Comando 'show_windows_toast' recebido.");
     let icon_path = app.path_resolver().resolve_resource("icons/icon.ico").expect("failed to resolve icon path");
     if let Err(e) = register(AUMID, "Google Chat", Some(&icon_path)) { eprintln!("Falha ao registrar AUMID: {:?}", e); }
@@ -37,7 +37,12 @@ async fn show_windows_toast(app: tauri::AppHandle, title: String, body: String) 
             }
         }
     });
-    let mut toast = Toast::new(); toast.text1(&title).text2(&body).action(Action::new("Ver", "open", ""));
+    let mut toast = Toast::new();
+    let button_text = if is_call { "Atender" } else { "Ver" };
+    toast
+        .text1(&title)
+        .text2(&body)
+        .action(Action::new(button_text, "open", ""));
     if let Err(e) = manager.show(&toast) { eprintln!("Erro ao mostrar toast: {:?}", e); }
     Box::leak(Box::new(manager));
 }
@@ -46,7 +51,7 @@ async fn show_windows_toast(app: tauri::AppHandle, title: String, body: String) 
 // --- INÍCIO: Lógica "Dummy" para Não-Windows ---
 #[cfg(not(target_os = "windows"))]
 #[tauri::command]
-async fn show_windows_toast(app: tauri::AppHandle, title: String, body: String) {
+async fn show_windows_toast(app: tauri::AppHandle, title: String, body: String, is_call: bool) {
     println!("\n!!! Notificação recebida (Não-Windows), DANDO IMPULSO !!!\n");
     if let Some(window) = app.get_window("main") {
         window.show().unwrap_or_default(); window.unminimize().unwrap_or_default(); window.set_focus().unwrap_or_default();

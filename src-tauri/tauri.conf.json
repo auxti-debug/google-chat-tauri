@@ -27,7 +27,7 @@
 					{
 						"domain": "meet.google.com", 
         				"enableTauriAPI": true,
-        				"windows": ["main", "meet-call-*"]
+        				"windows": ["meet-call-*"]
 					}
 				]
 			},

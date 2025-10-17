@@ -1,79 +1,101 @@
 /**
- * VERSÃO 29 (Plano S - Revisitado): Separa IPC.
- * - Mensagens: Usa invoke('show_windows_toast').
- * - Chamadas: Usa event.emit('incoming-call') para sinalizar o Rust.
+ * VERSÃO 35 (Plano Semaphore-Lock): Usa um semáforo temporizado para evitar todas as notificações duplicadas.
+ * - Um único sinalizador `notificationLock` é gerenciado no contexto da janela principal.
+ * - Quando uma notificação é criada, o bloqueio é ativado por 2 segundos, ignorando todas as outras tentativas.
+ * - O patch de Notification envia uma mensagem para a janela pai (`window.parent.postMessage`).
+ * - Um ouvinte de 'message' na janela principal captura a mensagem e chama o `invoke` com segurança.
  * Mantém o patch 'window.open'.
  */
 (function() { // Mantém a IIFE
-    console.log("TAURI :: Preload script (v29) carregado.");
+    console.log("TAURI :: Preload script (v35) carregado.");
 
     const allowedHostnames = ['chat.google.com', 'mail.google.com', 'meet.google.com'];
 
     if (allowedHostnames.includes(window.location.hostname)) {
-        console.log(`TAURI (preload v29): Hostname '${window.location.hostname}' detectado. Aguardando DOM...`);
+        console.log(`TAURI (preload v35): Hostname '${window.location.hostname}' detectado. Aguardando DOM...`);
 
         window.addEventListener('DOMContentLoaded', () => {
-            console.log("TAURI (preload v29): DOM carregado. Aplicando patches...");
+            console.log("TAURI (preload v35): DOM carregado. Aplicando patches...");
 
-            if (!window.__TAURI__ || !window.__TAURI__.tauri || !window.__TAURI__.event) {
-                // Agora precisamos do 'event' também
-                console.error("TAURI (preload v29): Erro crítico: APIs __TAURI__ (tauri, event) não encontradas.");
-                return;
+            // Verifica se estamos no contexto principal (top-level) para adicionar o ouvinte.
+            // O patch de Notification será aplicado em todos os contextos (principal e iframes).
+            if (window.self === window.top) {
+                console.log("TAURI (preload v35): Contexto principal detectado. Configurando ouvinte de postMessage.");
+                
+                // Semáforo para controlar o fluxo de notificações. Apenas o contexto principal precisa dele.
+                let notificationLock = false;
+
+                const { invoke } = window.__TAURI__.tauri;
+
+                // --- PASSO 1: Ouvinte de Mensagem (no contexto principal) ---
+                window.addEventListener('message', (event) => {
+                    // Filtra mensagens para garantir que são do nosso patch
+                    if (!event.data || event.data.type !== 'GC_NATIVE_NOTIFICATION') {
+                        return;
+                    }
+
+                    // Se o bloqueio estiver ativo, ignora a mensagem.
+                    if (notificationLock) {
+                        console.log(`TAURI (preload v35): Bloqueio ativo. Mensagem de notificação ignorada.`);
+                        return;
+                    }
+
+                    // Ativa o bloqueio e agenda o desbloqueio.
+                    notificationLock = true;
+                    setTimeout(() => {
+                        console.log("TAURI (preload v35): Bloqueio de notificação desativado.");
+                        notificationLock = false;
+                    }, 2000); // Bloqueio de 2 segundos
+                    
+                    const { title, options, isCall } = event.data.payload;
+                    console.log(`TAURI (preload v35): Mensagem recebida. Chamando 'show_windows_toast' para "${title}".`);
+                    invoke('show_windows_toast', { title: title, body: options.body || '', isCall: isCall });
+                });
             }
 
-            const { invoke } = window.__TAURI__.tauri;
-            const { emit } = window.__TAURI__.event; // Pega a função 'emit'
-            const originalWindowOpen = window.open;
-            // Não precisamos mais do OriginalNotification aqui
-
-            // --- PATCH 1: new Notification (IPC SEPARADO) ---
+            // --- PASSO 2: Patch do `new Notification` (executa em todos os contextos) ---
             window.Notification = function(title, options) {
+                console.log(`TAURI (preload v35): Interceptado (Notification): "${title}". Enviando postMessage.`);
+                const isCall = title.includes("chamada") || title.includes("call");
                 
-                if (title.includes("chamada") || title.includes("call")) {
-                    // É UMA CHAMADA:
-                    console.log(`TAURI (preload v29): Interceptado (Chamada): "${title}". Emitindo 'incoming-call'.`);
-                    
-                    // Tenta emitir o evento global para o Rust focar a janela
-                    try {
-                         emit('incoming-call', { notificationTitle: title }); 
-                    } catch (e) {
-                        console.error("TAURI (preload v29): Falha ao emitir 'incoming-call':", e);
-                    }
-                    // Apenas sinaliza o Rust e retorna o objeto falso.
-                    return new EventTarget();
+                // Envia a mensagem para a janela principal para ser processada.
+                window.parent.postMessage({ type: 'GC_NATIVE_NOTIFICATION', payload: { title, options, isCall: isCall } }, '*');
 
-                } else {
-                    // É UMA MENSAGEM:
-                    console.log(`TAURI (preload v29): Interceptado (Mensagem): "${title}". Chamando 'show_windows_toast'.`);
-                    // Chama o comando Rust para o toast clicável (funciona)
-                    invoke('show_windows_toast', { title: title, body: options.body || '' }); //
-                    return new EventTarget();
-                }
+                // Retorna um objeto falso para satisfazer o JS do Google Chat.
+                const fakeNotification = new EventTarget();
+                fakeNotification.close = () => { /* O método close agora não precisa fazer nada. */ };
+
+                return fakeNotification;
             };
             
-            window.Notification.requestPermission = async function() { return 'granted'; }; // "Mente"
-            window.Notification.permission = 'granted'; // "Mente"
+            window.Notification.requestPermission = async function() { return 'granted'; };
+            window.Notification.permission = 'granted';
             
-            console.log("TAURI (preload v29): Patch de notificação (IPC Separado) concluído.");
+            console.log("TAURI (preload v35): Patch de notificação (com semáforo) concluído.");
 
             // --- PATCH 2: window.open (para chamadas - SEM MUDANÇAS) ---
+            const originalWindowOpen = window.open;
             window.open = function(url, target, features) {
-                console.log(`TAURI (preload v29): Interceptado (window.open): "${url}"`);
+                console.log(`TAURI (preload v35): Interceptado (window.open): "${url}"`);
 
-                if (url && (url.includes('meet.google.com') || url.includes('/call/'))) { //
-                    console.log("TAURI (preload v29): URL de chamada detectada. Chamando 'open_url'.");
-                    invoke('open_url', { url: url }); //
+                if (url && (url.includes('meet.google.com') || url.includes('/call/'))) {
+                    console.log("TAURI (preload v35): URL de chamada detectada. Chamando 'open_url'.");
+                    if (window.self === window.top && window.__TAURI__ && window.__TAURI__.tauri) {
+                        window.__TAURI__.tauri.invoke('open_url', { url: url });
+                    } else {
+                        console.warn("TAURI (preload v35): 'invoke' não disponível neste contexto para window.open. A URL pode não abrir.");
+                    }
                     return null;
                 }
 
-                console.log("TAURI (preload v29): URL normal detectada. Usando 'window.open' original.");
+                console.log("TAURI (preload v35): URL normal detectada. Usando 'window.open' original.");
                 return originalWindowOpen.call(window, url, target, features);
             };
-            console.log("TAURI (preload v29): Patch de window.open concluído.");
+            console.log("TAURI (preload v35): Patch de window.open concluído.");
 
         }); // Fim do DOMContentLoaded
 
     } else {
-        console.log(`TAURI (preload v29): Hostname '${window.location.hostname}' ignorado.`);
+        console.log(`TAURI (preload v35): Hostname '${window.location.hostname}' ignorado.`);
     }
 })();
