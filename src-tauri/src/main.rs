@@ -11,7 +11,7 @@ use tauri_plugin_deep_link;
 
 // --- INÍCIO: Lógica específica do Windows ---
 #[cfg(target_os = "windows")]
-use winrt_toast_reborn::{register, Action, Toast, ToastManager};
+use winrt_toast_reborn::{register, Toast, ToastManager};
 
 #[cfg(target_os = "windows")]
 const AUMID: &str = "io.github.thatonecalculator.google-chat-tauri";
@@ -20,42 +20,51 @@ const AUMID: &str = "io.github.thatonecalculator.google-chat-tauri";
 #[tauri::command]
 async fn show_windows_toast(app: tauri::AppHandle, title: String, body: String, is_call: bool) {
     println!("TAURI :: Comando 'show_windows_toast' recebido.");
-    // Usamos Box::leak() aqui porque ToastManager não é 'Send', então não pode ser
-    // colocado no estado gerenciado do Tauri. Esta é a abordagem pragmática para esta biblioteca.
+    
     if let Some(icon_path) = app.path_resolver().resolve_resource("icons/icon.ico") {
+        
+        // --- ETAPA 1: Manter o registro do AUMID ---
+        // Esta é a função que define o ícone no CABEÇALHO (ao lado de "Google Chat")
         if let Err(e) = register(AUMID, "Google Chat", Some(&icon_path)) {
             eprintln!("Falha ao registrar AUMID: {:?}", e);
         }
+        
+        // O resto do 'manager' continua igual...
         let manager = ToastManager::new(AUMID).on_activated(None, {
             let app_handle = app.clone();
             move |action| {
-                if let Some(act) = action {
-                    if act.arg == "open" {
-                        println!("\n!!! CLIQUE NO TOAST DETECTADO (WinRT), DANDO IMPULSO !!!\n");
-                        if let Some(window) = app_handle.get_window("main") {
-                            let _ = window.show();
-                            let _ = window.unminimize();
-                            let _ = window.set_focus();
-                            let _ = window.request_user_attention(Some(UserAttentionType::Critical));
-                        }
+                if action.is_none() {
+                    println!("\n!!! CLIQUE NO CORPO DO TOAST DETECTADO (WinRT), DANDO IMPULSO !!!\n");
+                    if let Some(window) = app_handle.get_window("main") {
+                        let _ = window.show();
+                        let _ = window.unminimize();
+                        let _ = window.set_focus();
+                        let _ = window.request_user_attention(Some(UserAttentionType::Critical));
                     }
                 }
             }
         });
 
-        let mut toast = Toast::new();
-        let button_text = if is_call { "Atender" } else { "Ver" };
-        toast.text1(&title).text2(&body).action(Action::new(button_text, "open", ""));
+        // 'toast' precisa ser mutável
+        let mut toast = Toast::new(); 
+        
+        // --- ETAPA 2: REMOVER o código da imagem de conteúdo ---
+        // O bloco 'if let Some(icon_str) ...' que estava aqui foi removido.
+        // Não vamos mais adicionar a imagem "AppLogoOverride" (o avatar).
+
+        // --- ETAPA 3: Apenas adicionar o texto ---
+        toast.text1(&title).text2(&body);
 
         if let Err(e) = manager.show(&toast) {
             eprintln!("Erro ao mostrar toast: {:?}", e);
         }
-        // Intencionalmente vazamos a memória para manter o callback do toast vivo.
+        
         Box::leak(Box::new(manager));
     } else {
         eprintln!("Falha ao resolver o caminho do ícone.");
     }
 }
+
 // --- FIM: Lógica específica do Windows ---
 
 // --- INÍCIO: Lógica "Dummy" para Não-Windows ---
