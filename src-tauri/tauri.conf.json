@@ -1,77 +1,84 @@
-{
-	"build": {
-		"beforeDevCommand": "pnpm run dev",
-		"beforeBuildCommand": "pnpm run build",
-		"devPath": "http://localhost:1420",
-		"distDir": "../dist",
-		"withGlobalTauri": true
-	},
-	"package": {
-		"productName": "Google Chat",
-		"version": "0.0.8"
-	},
-	"tauri": {
-		"security": {
-			"csp": null,
-			"dangerousRemoteDomainIpcAccess": [
-				{
-					"domain": "chat.google.com",
-					"enableTauriAPI": true,
-					"windows": ["main"]
+	{
+		"build": {
+			"beforeDevCommand": "pnpm run dev",
+			"beforeBuildCommand": "pnpm run build",
+			"devPath": "http://localhost:1422",
+			"distDir": "../dist",
+			"withGlobalTauri": true
+		},
+		"package": {
+			"productName": "Google Chat",
+			"version": "0.0.8"
+		},
+		"tauri": {
+			"security": {
+				"csp": null,
+				"dangerousRemoteDomainIpcAccess": [
+					{
+						"domain": "chat.google.com",
+						"enableTauriAPI": true,
+						"windows": ["main"]
+					},
+					{
+						"domain": "mail.google.com",
+						"enableTauriAPI": true,
+						"windows": ["main"]
+					},
+					{
+						"domain": "meet.google.com", 
+        				"enableTauriAPI": true,
+        				"windows": ["meet-call-*"]
+					}
+				]
+			},
+			"allowlist": {
+				"all": false,
+				"notification": {
+					"all": true
 				},
-				{
-					"domain": "mail.google.com",
-					"enableTauriAPI": true,
-					"windows": ["main"]
+				"path": {
+					"all": true
+				},
+				"shell": {
+					"open": true
+				},
+				"window": {
+					"all": false,
+        			"create": true,        
+        			"setTitle": true,       
+        			"setSize": true,        
+        			"setAlwaysOnTop": true, 
+        			"show": true,           
+        			"hide": true,           
+        			"unminimize": true,     
+        			"setFocus": true        
 				}
-			]
-		},
-		"allowlist": {
-			"all": false,
-			"notification": {
-				"all": true
 			},
-			"path": {
-				"all": true
+			"bundle": {
+				"active": true,
+				"targets": "all",
+				"category": "Productivity",
+				"resources": ["preload.js","icons/Square30x30Logo.png", "icons/icon.ico", "icons/128x128.png"],
+				"identifier": "io.github.thatonecalculator.google-chat-tauri",
+				"icon": [
+					"icons/32x32.png",
+					"icons/128x128.png",
+					"icons/128x128@2x.png",
+					"icons/icon.icns",
+					"icons/icon.ico"
+				]
 			},
-			"shell": {
-				"open": true
+			"systemTray": {
+				"iconAsTemplate": false,
+				"iconPath": "icons/128x128.png"
+			},
+			"updater": {
+				"active": true,
+				"endpoints": [
+					"https://github.com/ThatOneCalculator/google-chat-tauri/releases/latest/download/latest.json"
+				],
+				"dialog": true,
+				"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDEzREQ5MEI2RTA3M0ZBMApSV1NnUHdkdUM5azlBZDN3alNldGFjNXAraWdERGRuRjlTcnVGNVArZVRIK2U3alZzV3ozWkFFNQo="
 			}
-		},
-		"bundle": {
-			"active": true,
-			"targets": "all",
-			"category": "Productivity",
-			"identifier": "io.github.thatonecalculator.google-chat-tauri",
-			"icon": [
-				"icons/32x32.png",
-				"icons/128x128.png",
-				"icons/128x128@2x.png",
-				"icons/icon.icns",
-				"icons/icon.ico"
-			]
-		},
-		"windows": [
-			{
-				"fullscreen": false,
-				"resizable": true,
-				"title": "Google Chat",
-				"width": 800,
-				"height": 600,
-				"label": "main"
-			}
-		],
-		"systemTray": {
-			"iconAsTemplate": false,
-			"iconPath": "icons/128x128.png"
-		},
-		"updater": {
-			"active": true,
-			"endpoints": [
-				"https://github.com/ThatOneCalculator/google-chat-tauri/releases/latest/download/latest.json"
-			],
-			"dialog": true,
-			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDEzREQ5MEI2RTA3M0ZBMApSV1NnUHdkdUM5azlBZDN3alNldGFjNXAraWdERGRuRjlTcnVGNVArZVRIK2U3alZzV3ozWkFFNQo="
 		}
 	}
-}

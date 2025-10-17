@@ -1,6 +1,8 @@
 {
   "recommendations": [
     "rust-lang.rust-analyzer",
-    "tauri-apps.tauri-vscode"
+    "tauri-apps.tauri-vscode",
+    "google.geminicodeassist",
+    "wassimdev.wassimdev-vscode-deepseek"
   ]
 }
