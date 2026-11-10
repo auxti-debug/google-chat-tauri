@@ -1,31 +1,13 @@
 import { defineConfig } from "vite";
 
-// https://vitejs.dev/config/
-export default defineConfig(async () => ({
-	// Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
-	//
-	// 1. prevent vite from obscuring rust errors
-	clearScreen: false,
-	// 2. tauri expects a fixed port, fail if that port is not available
-	server: {
-		port: 1422,
-		strictPort: true,
-	},
-	// 3. to make use of `TAURI_DEBUG` and other env variables
-	// https://tauri.app/v1/api/config#buildconfig.beforedevcommand
-	envPrefix: ["VITE_", "TAURI_"],
-
-	optimizeDeps: {
-		include: ["@tauri-apps/api"],
-	},
-
-	build: {
-		target: "esnext",
-		cssMinify: "lightningcss",
-		rollupOptions: {
-			input: {
-				main: "index.html",
-			},
-		},
-	},
-}));
+export default defineConfig({
+  clearScreen: false,
+  server: {
+    port: 1422,
+    strictPort: true,
+  },
+  build: {
+    target: "esnext",
+    cssMinify: "lightningcss",
+  },
+});

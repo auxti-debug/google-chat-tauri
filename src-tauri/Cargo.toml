@@ -1,31 +1,31 @@
 [package]
 name = "google-chat-tauri"
-version = "0.0.8"
+version = "0.0.13"
 description = "Google Chat"
 authors = ["Kainoa Kanter <kainoa@t1c.dev>"]
 license = ""
 repository = "https://github.com/ThatOneCalculator/google-chat-tauri"
 edition = "2021"
+rust-version = "1.90"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [build-dependencies]
-tauri-build = { version = "1.5.3", features = [] }
+tauri-build = { version = "2.7.4", features = [] }
 
 [dependencies]
-tauri = { version = "1.7.1", features = [ "window-set-title", "window-hide", "window-set-focus", "window-create", "window-show", "window-set-size", "window-set-always-on-top", "window-unminimize", "notification-all", "updater", "shell-open", "system-tray", "path-all", "global-shortcut" ] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-tauri-plugin-persisted-scope = "0.1.0"
-tauri-plugin-deep-link = "0.1.1"
-url = "2.3.1"
+tauri = { version = "2.12.5", features = ["tray-icon", "image-png"] }
+tauri-plugin-deep-link = "2.6.3"
+tauri-plugin-single-instance = "2.5.5"
+serde_json = "1"
+url = "2"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
 [target.'cfg(windows)'.dependencies]
+webview2-com = "0.39"
 winrt-toast-reborn = "0.3.8"
+winreg = "0.55"
+winapi = { version = "0.3", features = ["std", "winuser", "wingdi", "combaseapi", "shobjidl_core", "winerror", "objbase"] }
 
 [features]
-# this feature is used for production builds or when `devPath` points to the filesystem
-# DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]
-
-
