@@ -18,7 +18,7 @@ use tauri::{
 use tauri_plugin_deep_link::DeepLinkExt;
 
 #[cfg(target_os = "windows")]
-mod download_popup;
+mod downloads;
 #[cfg(target_os = "windows")]
 mod webview_update;
 
@@ -421,6 +421,11 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
     let hide = MenuItem::with_id(app, "hide", "Fechar Janela", true, None::<&str>)?;
     let restart = MenuItem::with_id(app, "restart", "Reiniciar", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
+    #[cfg(target_os = "windows")]
+    let downloads = MenuItem::with_id(app, "downloads", "Downloads", true, None::<&str>)?;
+    #[cfg(target_os = "windows")]
+    let menu = Menu::with_items(app, &[&hide, &downloads, &restart, &separator, &quit])?;
+    #[cfg(not(target_os = "windows"))]
     let menu = Menu::with_items(app, &[&hide, &restart, &separator, &quit])?;
     app.manage(hide);
 
@@ -432,6 +437,11 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
             "quit" => app.exit(0),
             "restart" => app.request_restart(),
             "hide" => toggle_window_visibility(app),
+            #[cfg(target_os = "windows")]
+            "downloads" => {
+                focus_main_window(app);
+                downloads::show(app, true);
+            }
 
             _ => {}
         })
@@ -562,7 +572,7 @@ fn main() {
                 {
                     Ok(window) => {
                         #[cfg(target_os = "windows")]
-                        if let Err(error) = download_popup::watch(&window) {
+                        if let Err(error) = downloads::watch(&window, true) {
                             log_debug(&format!("[popup] could not watch downloads: {error}"));
                             let _ = window.show();
                         }
@@ -577,7 +587,11 @@ fn main() {
             .build()?;
 
             #[cfg(target_os = "windows")]
-            webview_update::watch(&window);
+            {
+                downloads::setup(&window)?;
+                downloads::watch(&window, false)?;
+                webview_update::watch(&window);
+            }
             #[cfg(not(target_os = "windows"))]
             let _ = window;
 

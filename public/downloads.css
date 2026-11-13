@@ -1,0 +1,46 @@
+html {
+  color-scheme: light dark;
+  font: 14px/1.4 "Segoe UI", sans-serif;
+}
+
+body {
+  margin: 0;
+  color: CanvasText;
+  background: Canvas;
+}
+
+ul {
+  margin: 0;
+  padding: 0 16px;
+  list-style: none;
+}
+
+li {
+  padding: 12px 0;
+  border-bottom: 1px solid color-mix(in srgb, CanvasText 16%, Canvas);
+}
+
+.name {
+  display: block;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.status {
+  display: block;
+  margin-top: 4px;
+  color: color-mix(in srgb, CanvasText 76%, Canvas);
+  font-size: 12px;
+}
+
+progress {
+  display: block;
+  width: 100%;
+  height: 6px;
+  margin-top: 8px;
+  accent-color: #4d92f4;
+}
+
+progress[hidden] {
+  display: none;
+}
