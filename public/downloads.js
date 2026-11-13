@@ -16,11 +16,26 @@ function createRow(id) {
   const item = document.createElement("li");
   const name = document.createElement("span");
   name.className = "name";
+  const open = document.createElement("button");
+  open.type = "button";
+  open.className = "name open";
+  open.hidden = true;
+  const error = document.createElement("span");
+  error.className = "error";
+  error.setAttribute("role", "status");
+  open.addEventListener("click", async () => {
+    error.textContent = "";
+    try {
+      await window.__TAURI_INTERNALS__.invoke("open_download", { id });
+    } catch (message) {
+      error.textContent = typeof message === "string" ? message : "Não foi possível abrir o arquivo.";
+    }
+  });
   const status = document.createElement("span");
   status.className = "status";
   const progress = document.createElement("progress");
-  item.append(name, status, progress);
-  const row = { item, name, status, progress };
+  item.append(name, open, status, progress, error);
+  const row = { item, name, open, status, progress };
   rows.set(id, row);
   return row;
 }
@@ -40,6 +55,10 @@ window.renderDownloads = (downloads) => {
       list.insertBefore(row.item, list.children[index] ?? null);
     }
     row.name.textContent = download.name;
+    const canOpen = download.status === "complete";
+    row.name.hidden = canOpen;
+    row.open.hidden = !canOpen;
+    row.open.textContent = canOpen ? download.name : "";
     const received = formatSize(download.received);
 
     if (download.status === "active") {

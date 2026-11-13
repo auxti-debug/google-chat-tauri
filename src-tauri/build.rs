@@ -5,6 +5,7 @@ fn main() {
             "set_unread_count",
             "is_main_window_visible",
             "open_url",
+            "open_download",
         ]));
     tauri_build::try_build(attributes).expect("failed to build the Tauri application");
 }

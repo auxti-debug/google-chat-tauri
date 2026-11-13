@@ -465,17 +465,27 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
 fn main() {
     log_debug("[boot] main starting");
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             focus_main_window(app)
         }))
-        .plugin(tauri_plugin_deep_link::init())
-        .invoke_handler(tauri::generate_handler![
-            show_windows_toast,
-            set_unread_count,
-            is_main_window_visible,
-            open_url
-        ])
+        .plugin(tauri_plugin_deep_link::init());
+    #[cfg(target_os = "windows")]
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        show_windows_toast,
+        set_unread_count,
+        is_main_window_visible,
+        open_url,
+        downloads::open_download
+    ]);
+    #[cfg(not(target_os = "windows"))]
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        show_windows_toast,
+        set_unread_count,
+        is_main_window_visible,
+        open_url
+    ]);
+    builder
         .on_window_event(|window, event| {
             if window.label() != "main" {
                 return;

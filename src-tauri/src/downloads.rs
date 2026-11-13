@@ -1,27 +1,32 @@
 use std::{
     cell::RefCell,
     fs,
-    os::windows::fs::OpenOptionsExt,
+    os::windows::{ffi::OsStrExt, fs::OpenOptionsExt},
     path::{Path, PathBuf},
+    ptr::null,
+    sync::Mutex,
     time::SystemTime,
 };
 
 use serde_json::{json, Value};
 use tauri::{
-    AppHandle, Manager, PhysicalPosition, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+    AppHandle, Manager, PhysicalPosition, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
     WindowEvent,
 };
 use webview2_com::{
-    CoTaskMemPWSTR, DownloadStartingEventHandler,
+    CoTaskMemPWSTR, DownloadStartingEventHandler, IsDefaultDownloadDialogOpenChangedEventHandler,
     Microsoft::Web::WebView2::Win32::{
-        ICoreWebView2DownloadOperation, ICoreWebView2_4,
+        ICoreWebView2, ICoreWebView2DownloadOperation, ICoreWebView2_4, ICoreWebView2_9,
         COREWEBVIEW2_DOWNLOAD_INTERRUPT_REASON_USER_CANCELED,
         COREWEBVIEW2_DOWNLOAD_STATE_COMPLETED, COREWEBVIEW2_DOWNLOAD_STATE_INTERRUPTED,
     },
 };
 use winapi::{
     shared::windef::HWND,
-    um::winuser::{KillTimer, SetTimer},
+    um::{
+        shellapi::ShellExecuteW,
+        winuser::{KillTimer, SetTimer, SW_SHOWNORMAL},
+    },
 };
 use windows_core::Interface;
 
@@ -48,7 +53,55 @@ struct Download {
     received: i64,
     total: i64,
     status: &'static str,
+    saved_path: Option<PathBuf>,
     active: Option<ActiveDownload>,
+}
+
+#[derive(Default)]
+pub struct CompletedFiles(Mutex<std::collections::HashMap<u64, PathBuf>>);
+
+#[tauri::command]
+pub fn open_download(
+    window: WebviewWindow,
+    files: State<'_, CompletedFiles>,
+    id: u64,
+) -> Result<(), String> {
+    if window.label() != PANEL {
+        return Err("Abra o arquivo pelo painel Downloads.".into());
+    }
+    let path = files
+        .0
+        .lock()
+        .map_err(|_| "A lista de downloads está indisponível.")?
+        .get(&id)
+        .cloned()
+        .ok_or("Este download não está mais na lista.")?;
+    if !path.is_file() {
+        return Err("O arquivo foi movido ou excluído.".into());
+    }
+    let path = crate::shell_compatible_path(path);
+    let wide_path: Vec<u16> = path
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let hwnd = window
+        .hwnd()
+        .map_err(|_| "Não foi possível acessar a janela Downloads.")?;
+    let result = unsafe {
+        ShellExecuteW(
+            hwnd.0.cast(),
+            null(),
+            wide_path.as_ptr(),
+            null(),
+            null(),
+            SW_SHOWNORMAL,
+        )
+    } as isize;
+    if result <= 32 {
+        return Err("O Windows não conseguiu abrir este arquivo.".into());
+    }
+    Ok(())
 }
 
 struct ActiveDownload {
@@ -61,6 +114,7 @@ struct ActiveDownload {
 }
 
 pub fn setup(main: &WebviewWindow) -> tauri::Result<()> {
+    main.app_handle().manage(CompletedFiles::default());
     let panel = WebviewWindowBuilder::new(
         main.app_handle(),
         PANEL,
@@ -171,6 +225,7 @@ pub fn watch(window: &WebviewWindow, popup: bool) -> tauri::Result<()> {
             platform
                 .controller()
                 .CoreWebView2()
+                .inspect(suppress_browser_downloads)
                 .and_then(|webview| webview.cast::<ICoreWebView2_4>())
                 .and_then(|webview| {
                     let handler = DownloadStartingEventHandler::create(Box::new(move |_, args| {
@@ -209,6 +264,7 @@ pub fn watch(window: &WebviewWindow, popup: bool) -> tauri::Result<()> {
                                 received: 0,
                                 total,
                                 status: "active",
+                                saved_path: None,
                                 active: Some(ActiveDownload {
                                     window: observer.clone(),
                                     close_popup,
@@ -246,6 +302,33 @@ pub fn watch(window: &WebviewWindow, popup: bool) -> tauri::Result<()> {
             ));
         }
     })
+}
+
+fn suppress_browser_downloads(webview: &ICoreWebView2) {
+    let result = webview
+        .cast::<ICoreWebView2_9>()
+        .and_then(|browser| unsafe {
+            let handler =
+                IsDefaultDownloadDialogOpenChangedEventHandler::create(Box::new(|webview, _| {
+                    let Some(webview) = webview else {
+                        return Ok(());
+                    };
+                    let browser = webview.cast::<ICoreWebView2_9>()?;
+                    let mut open = Default::default();
+                    browser.IsDefaultDownloadDialogOpen(&mut open)?;
+                    if open.as_bool() {
+                        browser.CloseDefaultDownloadDialog()?;
+                    }
+                    Ok(())
+                }));
+            browser.add_IsDefaultDownloadDialogOpenChanged(&handler, &mut 0)?;
+            browser.CloseDefaultDownloadDialog()
+        });
+    if let Err(error) = result {
+        crate::log_debug(&format!(
+            "[downloads] could not close browser downloads: {error}"
+        ));
+    }
 }
 
 fn file_stamp(path: &Path) -> Option<(Option<SystemTime>, u64)> {
@@ -289,6 +372,17 @@ impl Download {
         });
         if state == COREWEBVIEW2_DOWNLOAD_STATE_COMPLETED || saved.is_some() {
             self.status = "complete";
+            let mut path = Default::default();
+            self.saved_path = if unsafe { operation.ResultFilePath(&mut path) }.is_ok() {
+                let actual_path = PathBuf::from(CoTaskMemPWSTR::from(path).to_string());
+                Some(if actual_path.is_absolute() {
+                    actual_path
+                } else {
+                    active.path.clone()
+                })
+            } else {
+                Some(active.path.clone())
+            };
             if let Some((_, size)) = saved {
                 self.received = i64::try_from(size).unwrap_or(i64::MAX);
             }
@@ -331,6 +425,18 @@ unsafe extern "system" fn update_progress(hwnd: HWND, _: u32, _: usize, _: u32) 
             .iter_mut()
             .filter_map(Download::refresh)
             .collect();
+        if let Some(files) = app
+            .as_ref()
+            .and_then(|app| app.try_state::<CompletedFiles>())
+        {
+            if let Ok(mut files) = files.0.lock() {
+                *files = downloads
+                    .entries
+                    .iter()
+                    .filter_map(|entry| entry.saved_path.clone().map(|path| (entry.id, path)))
+                    .collect();
+            }
+        }
         let running = downloads.entries.iter().any(|item| item.active.is_some());
         (app, running, popups)
     });

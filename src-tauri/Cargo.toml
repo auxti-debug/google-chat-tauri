@@ -1,6 +1,6 @@
 [package]
 name = "google-chat-tauri"
-version = "0.0.17"
+version = "0.0.18"
 description = "Google Chat"
 authors = ["Kainoa Kanter <kainoa@t1c.dev>"]
 license = ""
@@ -26,7 +26,7 @@ webview2-com = "0.39"
 windows-core = "0.62"
 winrt-toast-reborn = "0.3.8"
 winreg = "0.55"
-winapi = { version = "0.3", features = ["std", "winuser", "wingdi", "combaseapi", "shobjidl_core", "winerror", "objbase"] }
+winapi = { version = "0.3", features = ["std", "winuser", "wingdi", "combaseapi", "shobjidl_core", "winerror", "objbase", "shellapi"] }
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]
