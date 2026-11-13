@@ -1,6 +1,6 @@
 [package]
 name = "google-chat-tauri"
-version = "0.0.15"
+version = "0.0.16"
 description = "Google Chat"
 authors = ["Kainoa Kanter <kainoa@t1c.dev>"]
 license = ""
@@ -23,6 +23,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.39"
+windows-core = "0.62"
 winrt-toast-reborn = "0.3.8"
 winreg = "0.55"
 winapi = { version = "0.3", features = ["std", "winuser", "wingdi", "combaseapi", "shobjidl_core", "winerror", "objbase"] }

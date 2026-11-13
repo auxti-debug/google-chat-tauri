@@ -6,6 +6,8 @@
 #[cfg(target_os = "windows")]
 use std::ptr::{null, null_mut};
 use std::sync::atomic::{AtomicU64, Ordering};
+#[cfg(target_os = "windows")]
+use tauri::webview::PageLoadEvent;
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -15,6 +17,8 @@ use tauri::{
 };
 use tauri_plugin_deep_link::DeepLinkExt;
 
+#[cfg(target_os = "windows")]
+mod download_popup;
 #[cfg(target_os = "windows")]
 mod webview_update;
 
@@ -539,12 +543,31 @@ fn main() {
                 )
                 .title("Google Chat")
                 .window_features(features)
+                .visible(!cfg!(target_os = "windows"))
+                .on_page_load(|window, page| {
+                    #[cfg(target_os = "windows")]
+                    if page.event() == PageLoadEvent::Started
+                        && page.url().as_str() != "about:blank"
+                    {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                    #[cfg(not(target_os = "windows"))]
+                    let _ = (window, page);
+                })
                 .on_document_title_changed(|window, title| {
                     let _ = window.set_title(&title);
                 })
                 .build()
                 {
-                    Ok(window) => NewWindowResponse::Create { window },
+                    Ok(window) => {
+                        #[cfg(target_os = "windows")]
+                        if let Err(error) = download_popup::watch(&window) {
+                            log_debug(&format!("[popup] could not watch downloads: {error}"));
+                            let _ = window.show();
+                        }
+                        NewWindowResponse::Create { window }
+                    }
                     Err(error) => {
                         log_debug(&format!("[popup] could not open window: {error}"));
                         NewWindowResponse::Deny
