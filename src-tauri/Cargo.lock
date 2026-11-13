@@ -1398,7 +1398,7 @@ dependencies = [
 
 [[package]]
 name = "google-chat-tauri"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "chrono",
  "serde_json",

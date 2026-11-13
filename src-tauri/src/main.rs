@@ -5,9 +5,11 @@
 
 #[cfg(target_os = "windows")]
 use std::ptr::{null, null_mut};
+use std::sync::atomic::{AtomicU64, Ordering};
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    webview::NewWindowResponse,
     AppHandle, Manager, UserAttentionType, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
     WindowEvent,
 };
@@ -376,8 +378,6 @@ async fn open_url(app: AppHandle, url: String) -> Result<(), String> {
         return Err("Only HTTPS links from meet.google.com are allowed.".to_string());
     }
 
-    use std::sync::atomic::{AtomicU64, Ordering};
-
     static NEXT_CALL: AtomicU64 = AtomicU64::new(0);
     let id = NEXT_CALL.fetch_add(1, Ordering::Relaxed);
     let call_window_label = format!("meet-call-{id}");
@@ -507,6 +507,7 @@ fn main() {
                 }
             }
 
+            let popup_app = app.handle().clone();
             let window = WebviewWindowBuilder::new(
                 app,
                 "main",
@@ -515,6 +516,41 @@ fn main() {
             .title("Google Chat")
             .inner_size(1200.0, 800.0)
             .initialization_script_for_all_frames(include_str!("../preload.js"))
+            .on_new_window(move |url, features| {
+                // The attachment viewer can open a download in a new window.
+                // Reuse the opener's WebView environment so downloads keep its session.
+                let allowed = match url.scheme() {
+                    "https" => true,
+                    "blob" => url.origin().ascii_serialization().starts_with("https://"),
+                    "about" => url.as_str() == "about:blank",
+                    _ => false,
+                };
+                if !allowed {
+                    return NewWindowResponse::Deny;
+                }
+
+                static NEXT_POPUP: AtomicU64 = AtomicU64::new(0);
+                let id = NEXT_POPUP.fetch_add(1, Ordering::Relaxed);
+                let label = format!("chat-popup-{id}");
+                match WebviewWindowBuilder::new(
+                    &popup_app,
+                    label,
+                    WebviewUrl::External("about:blank".parse().expect("valid blank URL")),
+                )
+                .title("Google Chat")
+                .window_features(features)
+                .on_document_title_changed(|window, title| {
+                    let _ = window.set_title(&title);
+                })
+                .build()
+                {
+                    Ok(window) => NewWindowResponse::Create { window },
+                    Err(error) => {
+                        log_debug(&format!("[popup] could not open window: {error}"));
+                        NewWindowResponse::Deny
+                    }
+                }
+            })
             .build()?;
 
             #[cfg(target_os = "windows")]
